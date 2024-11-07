@@ -1,0 +1,85 @@
+B_Section
+
+2. Product Funnel Analysis
+
+a) Create a table with product views, cart adds, abandoned adds, and purchases
+
+CREATE TABLE product_funnel AS
+SELECT
+  p.product_id,
+  COUNT(CASE WHEN e.event_type = 0 THEN 1 END) AS views,
+  COUNT(CASE WHEN e.event_type = 2 THEN 1 END) AS cart_adds,
+  COUNT(CASE WHEN e.event_type = 2 AND NOT EXISTS (SELECT 1 FROM clique_bait.events e2 WHERE e2.event_type = 1 AND e2.visit_id = e.visit_id) THEN 1 END) AS abandoned_adds,
+  COUNT(CASE WHEN e.event_type = 1 THEN 1 END) AS purchases
+FROM clique_bait.events e
+JOIN clique_bait.page_hierarchy p ON e.page_id = p.page_id
+GROUP BY p.product_id;
+
+b) Create a table with product category funnel data
+
+CREATE TABLE category_funnel AS
+SELECT
+  p.product_category,
+  COUNT(CASE WHEN e.event_type = 0 THEN 1 END) AS views,
+  COUNT(CASE WHEN e.event_type = 2 THEN 1 END) AS cart_adds,
+  COUNT(CASE WHEN e.event_type = 2 AND NOT EXISTS (SELECT 1 FROM clique_bait.events e2 WHERE e2.event_type = 1 AND e2.visit_id = e.visit_id) THEN 1 END) AS abandoned_adds,
+  COUNT(CASE WHEN e.event_type = 1 THEN 1 END) AS purchases
+FROM clique_bait.events e
+JOIN clique_bait.page_hierarchy p ON e.page_id = p.page_id
+GROUP BY p.product_category;
+
+C_Section
+3. Campaigns Analysis
+
+a) Generate a table with the specified details for each unique visit
+
+CREATE TABLE campaign_analysis AS
+SELECT
+  u.user_id,
+  e.visit_id,
+  MIN(e.event_time) AS visit_start_time,
+  COUNT(CASE WHEN e.event_type = 0 THEN 1 END) AS page_views,
+  COUNT(CASE WHEN e.event_type = 2 THEN 1 END) AS cart_adds,
+  CASE WHEN COUNT(CASE WHEN e.event_type = 1 THEN 1 END) > 0 THEN 1 ELSE 0 END AS purchase,
+  c.campaign_name,
+  COUNT(CASE WHEN e.event_type = 3 THEN 1 END) AS impressions,
+  COUNT(CASE WHEN e.event_type = 4 THEN 1 END) AS clicks,
+  STRING_AGG(CASE WHEN e.event_type = 2 THEN p.product_id END, ',' ORDER BY e.sequence_number) AS cart_products
+FROM clique_bait.events e
+JOIN clique_bait.users u ON e.cookie_id = u.cookie_id
+LEFT JOIN clique_bait.campaign_identifier c ON e.event_time BETWEEN c.start_date AND c.end_date
+JOIN clique_bait.page_hierarchy p ON e.page_id = p.page_id
+GROUP BY u.user_id, e.visit_id, c.campaign_name;
+
+D_Section
+4. Insights to Extract and Bonus Infographic
+For generating insights from the campaign_analysis table, the following queries may be useful:
+
+Identifying Users Who Received Impressions:
+Compare metrics for users who clicked impressions vs. those who didn’t.
+
+SELECT
+  campaign_name,
+  COUNT(DISTINCT CASE WHEN impressions > 0 THEN user_id END) AS users_with_impressions,
+  COUNT(DISTINCT CASE WHEN clicks > 0 THEN user_id END) AS users_with_clicks,
+  COUNT(DISTINCT CASE WHEN impressions = 0 THEN user_id END) AS users_without_impressions
+FROM campaign_analysis
+GROUP BY campaign_name;
+
+Purchase Rate Comparison for Users Who Clicked vs. Those Who Didn’t:
+
+SELECT
+  campaign_name,
+  AVG(CASE WHEN clicks > 0 THEN purchase END) AS avg_purchase_with_click,
+  AVG(CASE WHEN clicks = 0 THEN purchase END) AS avg_purchase_without_click
+FROM campaign_analysis
+GROUP BY campaign_name;
+
+Uplift in Purchase Rate from Impressions:
+
+SELECT
+  campaign_name,
+  AVG(CASE WHEN impressions > 0 THEN purchase END) AS avg_purchase_with_impression,
+  AVG(CASE WHEN impressions = 0 THEN purchase END) AS avg_purchase_without_impression
+FROM campaign_analysis
+GROUP BY campaign_name;	

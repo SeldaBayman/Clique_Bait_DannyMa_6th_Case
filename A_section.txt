@@ -1,0 +1,82 @@
+A_SECTION
+
+1. Digital Analysis 
+
+a) How many users are there?
+
+SELECT COUNT(DISTINCT user_id) AS total_users
+FROM clique_bait.users;
+
+b) How many cookies does each user have on average?
+
+SELECT AVG(cookie_count) AS avg_cookies_per_user
+FROM (
+  SELECT user_id, 
+  COUNT(DISTINCT cookie_id) AS cookie_count
+  FROM clique_bait.users
+  GROUP BY user_id
+) AS user_cookies;
+
+c) What is the unique number of visits by all users per month?
+
+SELECT
+  EXTRACT(YEAR FROM visit_time) AS year,
+  EXTRACT(MONTH FROM visit_time) AS month,
+  COUNT(DISTINCT visit_id) AS unique_visits
+FROM clique_bait.events
+GROUP BY year, month
+ORDER BY year, month;
+
+d) What is the number of events for each event type?
+
+SELECT event_type, 
+       COUNT(*) AS event_count
+FROM clique_bait.events
+GROUP BY event_type;
+
+e) What is the percentage of visits which have a purchase event?
+
+SELECT
+  (COUNT(DISTINCT CASE WHEN event_type = 1 THEN visit_id END) * 100.0) /
+   COUNT(DISTINCT visit_id) AS purchase_percentage
+FROM clique_bait.events;
+
+f) What is the percentage of visits which view the checkout page but do not have a purchase event?
+
+SELECT
+   (COUNT(DISTINCT CASE WHEN page_id = 
+   (SELECT page_id FROM clique_bait.page WHERE page_name = 'checkout') 
+    AND event_type != 1 THEN visit_id END) * 100.0) /
+    COUNT(DISTINCT visit_id) checkout_no_purchase_percentage
+FROM clique_bait.events;
+
+g) What are the top 3 pages by number of views?
+
+SELECT page_name, 
+       COUNT(*) AS view_count
+FROM clique_bait.events e
+JOIN clique_bait.page p ON e.page_id = p.page_id
+GROUP BY page_name
+ORDER BY view_count DESC
+LIMIT 3;
+
+h) What is the number of views and cart adds for each product category?
+
+SELECT
+  p.product_category,
+  COUNT(CASE WHEN e.event_type = 2 THEN 1 END) AS cart_adds,
+  COUNT(CASE WHEN e.event_type = 0 THEN 1 END) AS page_views
+FROM clique_bait.events e
+JOIN clique_bait.page p ON e.page_id = p.page_id
+GROUP BY p.product_category;
+
+i) What are the top 3 products by purchases?
+
+SELECT p.product_id, 
+       COUNT(*) AS purchase_count
+FROM clique_bait.events e
+JOIN clique_bait.page p ON e.page_id = p.page_id
+WHERE e.event_type = 1 
+GROUP BY p.product_id
+ORDER BY purchase_count DESC
+LIMIT 3;
